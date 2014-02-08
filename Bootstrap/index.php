@@ -6,6 +6,7 @@
 * by black-night - Daniel Neef
 * 
 ***************************************************************/
+require_once(PLUGIN_DIR_REL."Bootstrap/classes.php");
 class Bootstrap extends Plugin {
 	
 	const TYP_MEDIA = "media";
@@ -20,6 +21,10 @@ class Bootstrap extends Plugin {
 	const TYP_NAVBAR  = "navbar";
 	const TYP_JUMPOTRON = "jumbotron";
 	const TYP_GLYPHICON = "glyphicon";
+	const TYP_CAROUSEL = "carousel";
+	
+	protected $lang_admin;
+	private $lang_cms;	
 	
     /***************************************************************
     * 
@@ -74,6 +79,9 @@ class Bootstrap extends Plugin {
 		        case self::TYP_GLYPHICON:
 		            $result .= $this->typGlyphicon($values);
 		            break;
+	            case self::TYP_CAROUSEL:
+	                $result .= $this->typCarousel($values);
+	                break;
         	}
         }
         		
@@ -89,11 +97,13 @@ class Bootstrap extends Plugin {
     ***************************************************************/
     function getConfig() {
         global $ADMIN_CONF;        
-        $dir = PLUGIN_DIR_REL."Bootstrap/";
-        $language = $ADMIN_CONF->get("language");
-        $lang_admin = new Properties($dir."sprachen/admin_language_".$language.".txt",false);
-        
+       
         $config = array();
+        $config["--admin~~"] = array(
+                "buttontext" => $this->lang_admin->getLanguageValue("config_Bootstrap_carouselBtnText"),
+                "description" => $this->lang_admin->getLanguageValue("config_Bootstrap_carouselBtn"),
+                "datei_admin" => "adminCarousel.php"
+        );        
         return $config;            
     } // function getConfig
     
@@ -106,33 +116,34 @@ class Bootstrap extends Plugin {
     ***************************************************************/
     function getInfo() {
         global $ADMIN_CONF;        
-        $dir = PLUGIN_DIR_REL."Bootstrap/";
+        $dir = $this->PLUGIN_SELF_DIR;
         $language = $ADMIN_CONF->get("language");
-        $lang_admin = new Properties($dir."sprachen/admin_language_".$language.".txt",false);        
+        $this->lang_admin = new Language($dir."sprachen/admin_language_".$language.".txt");
         $info = array(
             // Plugin-Name
-            "<b>".$lang_admin->get("config_Bootstrap_plugin_name")."</b> \$Revision: 1 $",
+            "<b>".$this->lang_admin->getLanguageValue("config_Bootstrap_plugin_name")."</b> \$Revision: 1 $",
             // CMS-Version
             "2.0",
             // Kurzbeschreibung
-            $lang_admin->get("config_Bootstrap_plugin_desc"),
+            $this->lang_admin->getLanguageValue("config_Bootstrap_plugin_desc"),
             // Name des Autors
            "black-night",
             // Download-URL
             array("http://software.black-night.org","Software by black-night"),
             # Platzhalter => Kurzbeschreibung
-            array('{Bootstrap|Badge|Zahl}' => $lang_admin->get("config_Bootstrap_badge"),
-            	  '{Bootstrap|Button|Text|Type|Größe}' => $lang_admin->get("config_Bootstrap_button"),
-            	  '{Bootstrap|Collaps|Titel|Text}' => $lang_admin->get("config_Bootstrap_collaps"),
-            	  '{Bootstrap|Grid|Clear}' => $lang_admin->get("config_Bootstrap_gridclear"),
-            	  '{Bootstrap|Grid|Spalte|Offset|Inhalt}' => $lang_admin->get("config_Bootstrap_grid"),
-            	  '{Bootstrap|Label|Text|Type}' => $lang_admin->get("config_Bootstrap_label"),
-            	  '{Bootstrap|Media|Bild|Titel|Text}' => $lang_admin->get("config_Bootstrap_media"),
-            	  '{Bootstrap|Panel|Titel|Text|Fuß|Type}' => $lang_admin->get("config_Bootstrap_panel"),
-            	  '{Bootstrap|Tab|Titel|Text}' => $lang_admin->get("config_Bootstrap_tab"),
-            	  '{Bootstrap|Well|Text|Type}' => $lang_admin->get("config_Bootstrap_well"),
-                  '{Bootstrap|Jumbotron|Text}' => $lang_admin->get("config_Bootstrap_jumbotron"),
-                  '{Bootstrap|Glyphicon|Typ}' => $lang_admin->get("config_Bootstrap_glyphicon")
+            array('{Bootstrap|Badge|Zahl}' => $this->lang_admin->getLanguageValue("config_Bootstrap_badge"),
+            	  '{Bootstrap|Button|Text|Type|Größe}' => $this->lang_admin->getLanguageValue("config_Bootstrap_button"),
+            	  '{Bootstrap|Collaps|Titel|Text}' => $this->lang_admin->getLanguageValue("config_Bootstrap_collaps"),
+            	  '{Bootstrap|Grid|Clear}' => $this->lang_admin->getLanguageValue("config_Bootstrap_gridclear"),
+            	  '{Bootstrap|Grid|Spalte|Offset|Inhalt}' => $this->lang_admin->getLanguageValue("config_Bootstrap_grid"),
+            	  '{Bootstrap|Label|Text|Type}' => $this->lang_admin->getLanguageValue("config_Bootstrap_label"),
+            	  '{Bootstrap|Media|Bild|Titel|Text}' => $this->lang_admin->getLanguageValue("config_Bootstrap_media"),
+            	  '{Bootstrap|Panel|Titel|Text|Fuß|Type}' => $this->lang_admin->getLanguageValue("config_Bootstrap_panel"),
+            	  '{Bootstrap|Tab|Titel|Text}' => $this->lang_admin->getLanguageValue("config_Bootstrap_tab"),
+            	  '{Bootstrap|Well|Text|Type}' => $this->lang_admin->getLanguageValue("config_Bootstrap_well"),
+                  '{Bootstrap|Jumbotron|Text}' => $this->lang_admin->getLanguageValue("config_Bootstrap_jumbotron"),
+                  '{Bootstrap|Glyphicon|Typ}' => $this->lang_admin->getLanguageValue("config_Bootstrap_glyphicon"),
+                  '{Bootstrap|Carousel|Name}' => $this->lang_admin->getLanguageValue("config_Bootstrap_carousel")
                  )
             );
             return $info;        
@@ -144,7 +155,7 @@ class Bootstrap extends Plugin {
     *
     ***************************************************************/
         
-    private function getHead() {
+    protected function getHead() {
     	$head = '<style type="text/css"> @import "'.URL_BASE.PLUGIN_DIR_NAME.'/Bootstrap/css/bootstrap.min.css"; </style>'
      			.'<script type="text/javascript" src="'.URL_BASE.PLUGIN_DIR_NAME.'/Bootstrap/js/bootstrap.min.js"></script>'
     			;
@@ -403,7 +414,7 @@ class Bootstrap extends Plugin {
             $PageArray = $CatPage->get_PageArray($CategoriesArray[$i]);
             $CountPageIndex = count($PageArray)-1;
             $result .= "<li".$this->getNavbarLiClass(($CountPageIndex >= 0),$CatPage->is_Activ($CategoriesArray[$i],false)).">";
-            if ($CatPage->get_Type($CategoriesArray[$i],false) == 'cat') {
+            if (($CatPage->get_Type($CategoriesArray[$i],false) == 'cat') and ($CountPageIndex > 1)) {
                 $result .= '<a href="#" class="dropdown-toggle" data-toggle="dropdown">'.$CatPage->get_HrefText($CategoriesArray[$i],false).'<b class="caret"></b></a>';
             }else{
                 $result .= "<a href=\"".$CatPage->get_Href($CategoriesArray[$i],false)."\" target=\"".$CatPage->get_HrefTarget($CategoriesArray[$i],false)."\">".$CatPage->get_HrefText($CategoriesArray[$i],false)."</a>";
@@ -456,9 +467,48 @@ class Bootstrap extends Plugin {
     
     private function typGlyphicon($values) {
         if (count($values) == 2) {
-            global $syntax;
             $result = '<span class="glyphicon '.$values[1].'"></span>';
             return $result;
+        }else
+            return false;
+    }
+    
+    private function typCarousel($values) {
+        if (count($values) == 2) {
+            global $CatPage;
+            $Carousel = bsDatabase::LoadCarousel($this->PLUGIN_SELF_DIR."data/carousel.data.php",$values[1]);
+            if ($Carousel !== False) {
+                $CarouselID = str_replace('}','',str_replace('{','',$Carousel->ID));
+                $result = '<div data-ride="carousel" class="carousel slide" id="Carousel'.$CarouselID.'">';
+                $result .= '<ol class="carousel-indicators">';
+                $i = 0;
+                foreach ($Carousel->Items as $Item) {
+                    $result .= '<li data-slide-to="'.$i.'" data-target="#Carousel'.$CarouselID.'"';
+                    if ($i == 0) {
+                        $result .= ' class="active"';
+                    }
+                    $result .= '></li>';
+                    $i = $i + 1;
+                }
+                $result .= '</ol><div class="carousel-inner">';
+                $i = 0;
+                foreach ($Carousel->Items as $Item) {
+                    $result .= ' <div class="item';
+                    if ($i == 0) {
+                        $result .= ' active';
+                    }
+                    $result .= '">';
+                    $i = $i + 1;                    
+                    $file = $CatPage->split_CatPage_fromSyntax($Item->Img,true);
+                    $result .= '<img src="'.$CatPage->get_srcFile($file[0],$file[1]).'" alt="Slide '.$i.'"   />';
+                    $result .= '<div class="carousel-caption">'.$Item->Content.'</div>';
+                    $result .= ' </div>';
+                }                
+                $result .= '</div><a class="left carousel-control" href="#Carousel'.$CarouselID.'" data-slide="prev"><span class="glyphicon glyphicon-chevron-left"></span></a>';
+                $result .= '<a class="right carousel-control" href="#Carousel'.$CarouselID.'" data-slide="next"><span class="glyphicon glyphicon-chevron-right"></span></a></div>';
+                return  $result;
+            }else 
+                return false;
         }else
             return false;
     }
